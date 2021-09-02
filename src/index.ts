@@ -6,8 +6,11 @@ import abi from './config/abi.json';
 
 import * as ethers from 'ethers';
 import { getRlpSignature } from './utils/crypto';
+import {Transaction} from 'ethereumjs-tx';
 
-var _a = require('ethereum-cryptography/keccak'), keccak224 = _a.keccak224, keccak384 = _a.keccak384, k256 = _a.keccak256, keccak512 = _a.keccak512;
+const TX_PAYLOAD = '123';
+
+let _a = require('ethereum-cryptography/keccak'), keccak224 = _a.keccak224, keccak384 = _a.keccak384, k256 = _a.keccak256, keccak512 = _a.keccak512;
 
 const getFromHsm = async (signRequestId) => {
   const response: any = await new Promise(async (resolve, reject) => {
@@ -49,14 +52,24 @@ const sendToHsm = async (tx_payload, payloadType, signatureAlgorithm) => {
   const data = await getFromHsm(signRequest.signRequestId);
   return data.result;
 }
+interface ITXPayload {
+  nonce: number | string,
+  gasPrice: number | string,
+  gasLimit: number | string,
+  to: string,
+  value: number | string,
+  data?: string | null | number
+}
 
 const sendToContract = async (payload, hsmData, v_expected) => {
-  let signature = Buffer.from(hsmData, 'base64');
-  const v = Buffer.from([v_expected]);
+  let signature: any = Buffer.from(hsmData, 'base64');
+  const v: any = Buffer.from([v_expected]);
 
   signature = getRlpSignature(signature, v);
 
-  const splited = ethers.utils.splitSignature(signature);
+
+  // const splited = ethers.utils.splitSignature(signature);
+  const splited = {v: v_expected, r: `0x${signature.R.toString('hex')}`, s: `0x${signature.S.toString('hex')}`};
   console.log('signature', splited);
 
   const provider = new Web3.providers.WebsocketProvider(config.web3_provider, {
@@ -65,25 +78,42 @@ const sendToContract = async (payload, hsmData, v_expected) => {
       maxReceivedMessageSize: 100000000
     }
   });
-  
+
   const web3 = new Web3(provider);
 
   // @ts-ignore
   const contract = new web3.eth.Contract(abi, config.contract);
 
   const gasPrice = await web3.eth.getGasPrice();
-  const gasLimit = await contract.methods.set(123, splited.v, splited.r, splited.s, payload).estimateGas();
+  const gasLimit = await contract.methods.set(TX_PAYLOAD, splited.v, splited.r, splited.s, payload).estimateGas();
 
-  const txData = await contract.methods.set(123, splited.v, splited.r, splited.s, payload).encodeABI();
-  const signedTx = await web3.eth.accounts.signTransaction({
-    data: txData,
-    to: config.contract,
+  const txData = contract.methods.set(TX_PAYLOAD, splited.v, splited.r, splited.s, payload).encodeABI();
+
+  const TxPayload = {
+    nonce: web3.utils.toHex(await web3.eth.getTransactionCount('0xE1f76705323e92dbeBEeC468fFc6E16A59a9086B')),
     gasPrice: web3.utils.toHex(gasPrice),
-    gas: web3.utils.toHex(gasLimit)
-  }, config.privateKey);
+    gasLimit: web3.utils.toHex(gasLimit),
+    to: config.contract,
+    value: web3.utils.toHex('0'),
+    data: txData,
+    v: web3.utils.toHex(v_expected),
+    r: '0x0',
+    s: '0x0',
+   };
+  console.log(TxPayload)
 
-  const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-  return tx;
+  const _tx = new Transaction(TxPayload, {chain: 4});
+  _tx.raw[7] = signature.R
+  _tx.raw[8] = signature.S
+
+  // _tx[6] = Buffer.from(splited.v, 'hex')
+  _tx.raw[6] = splited.v
+
+  console.log('АДРЕС',`0x${_tx.getSenderAddress().toString('hex')}`)
+  const hashedTX = _tx.hash(true).toString('hex');
+  console.log('ТРАНЗАКЦИЯ',`0x${hashedTX}`)
+  // const tx = await web3.eth.sendSignedTransaction(`0x${hashedTX}`);
+  // return tx;
 }
 
 const getFromContract = async () => {
@@ -93,32 +123,32 @@ const getFromContract = async () => {
       maxReceivedMessageSize: 100000000
     }
   });
-  
+
   const web3 = new Web3(provider);
 
   // @ts-ignore
   const contract = new web3.eth.Contract(abi, config.contract);
-  const data = await contract.methods.get(123).call();
+  const data = await contract.methods.get(TX_PAYLOAD).call();
 
   return data;
 }
 
 const init = async () => {
-  const inputs = [123];
+  const inputs = [TX_PAYLOAD];
   const web3 = new Web3(null);
 
   const payload_1 = web3.utils.soliditySha3(...inputs);
   console.log('tx_payload', payload_1);
 
-  let payload_2: any = Buffer.from('123');
-  var prefix = Buffer.from("\u0019Ethereum Signed Message:\n" + payload_2.length.toString(), 'utf-8');
-  
-  payload_2 = k256(Buffer.concat([prefix, payload_2]));
-  payload_2 = payload_2.toString('base64');
+  let payload_2: any = Buffer.from(payload_1.replace('0x',''), 'hex');
+  // var prefix = Buffer.from("\u0019Ethereum Signed Message:\n" + payload_2.length.toString(), 'utf-8');
+  const message = `\u0019Ethereum Signed Message:\n${payload_2.length}${payload_1}`;
+  console.log('message', message, payload_2.length)
+  payload_2 = web3.utils.soliditySha3(message);
+  // payload_2 = Buffer.from(payload_1.replace('0x', ''), 'hex').toString('base64');
+  payload_2 = Buffer.from(payload_2.replace('0x', ''), 'hex').toString('base64');
 
-  console.log('tx_payload 2', payload_2);
-  
-  const payloadTypes = ['UNSPECIFIED', 'ETH'];
+  const payloadTypes = ['ETH'];
   const signatureAlgorithms = ['NONE_WITH_ECDSA']//['SHA224_WITH_RSA_PSS', 'SHA256_WITH_RSA_PSS', 'SHA384_WITH_RSA_PSS', 'SHA512_WITH_RSA_PSS', 'NONE_WITH_DSA', 'SHA224_WITH_DSA', 'SHA256_WITH_DSA', 'SHA384_WITH_DSA', 'SHA512_WITH_DSA', 'NONE_WITH_RSA', 'SHA224_WITH_RSA', 'SHA256_WITH_RSA', 'SHA384_WITH_RSA', 'SHA512_WITH_RSA', 'NONESHA224_WITH_RSA', 'NONESHA256_WITH_RSA', 'NONESHA384_WITH_RSA', 'NONESHA512_WITH_RSA', 'NONE_WITH_ECDSA', 'SHA1_WITH_ECDSA', 'SHA224_WITH_ECDSA', 'SHA256_WITH_ECDSA', 'SHA384_WITH_ECDSA', 'SHA512_WITH_ECDSA', 'SHA3224_WITH_ECDSA', 'SHA3256_WITH_ECDSA', 'SHA3384_WITH_ECDSA', 'SHA3512_WITH_ECDSA', 'EDDSA', 'KECCAK224_WITH_ECDSA', 'KECCAK256_WITH_ECDSA', 'KECCAK384_WITH_ECDSA', 'KECCAK512_WITH_ECDSA', 'ISS_KERL', 'SHA1_WITH_RSA', 'SHA1_WITH_DSA', 'NONESHA1_WITH_RSA', 'SHA1_WITH_RSA_PSS', 'BLS'];
 
   for (const payloadType of payloadTypes) {
@@ -128,18 +158,18 @@ const init = async () => {
       try {
         const hsmData = await sendToHsm(payload_2, payloadType, signatureAlgorithm);
         console.log('hsmData', hsmData);
-  
+
         const tx_1 = await sendToContract(payload_1, hsmData, 27);
-        console.log('tx_1', tx_1);
-  
-        const contractData_1 = await getFromContract();
-        console.log('contractData_1', contractData_1);
-  
+        // console.log('tx_1', tx_1);
+        //
+        // const contractData_1 = await getFromContract();
+        // console.log('contractData_1', contractData_1);
+
         const tx_2 = await sendToContract(payload_1, hsmData, 28);
-        console.log('tx_2', tx_2);
-  
-        const contractData_2 = await getFromContract();
-        console.log('contractData_2', contractData_2);
+        // console.log('tx_2', tx_2);
+        //
+        // const contractData_2 = await getFromContract();
+        // console.log('contractData_2', contractData_2);
       } catch(error) {
         console.log(error)
         // console.log(error.toString());
