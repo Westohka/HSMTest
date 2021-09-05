@@ -91,7 +91,14 @@ const getFromContract = async () => {
 
 
 const init = async () => {
-  let inputs: any = [TX_PAYLOAD];
+  let inputs: any =
+    [
+      TX_PAYLOAD,
+      '0x2b',
+      '0x7b997e422d6944bb80a0dc5322ffd4898c75560b0e41ff329aad9830822bd45f',
+      '0x7fd5c545969717c3757f644bd571b23dc28fd8aea6eb4833e5f9b2be230285fc',
+      '0xfe69b67d939f27c66c91b2b7e9769b2cd42dae18a2492dff3cc132c20d02678c'
+    ];
   console.log(inputs)
   // const payload2 = await preparePayload(inputs,config.address)
   let payload = web3.utils.soliditySha3(...inputs);
@@ -137,10 +144,10 @@ const init = async () => {
 
       // payload.r = signature.R;
       // payload.s = signature.S;
-      inputs[4] = payload
-      inputs[1] = V
-      inputs[2] = `0x${signature.R.toString('hex')}`
-      inputs[3] = `0x${signature.S.toString('hex')}`
+      // inputs[4] = payload
+      // inputs[1] = V
+      // inputs[2] = `0x${signature.R.toString('hex')}`
+      // inputs[3] = `0x${signature.S.toString('hex')}`
 
       console.log(inputs)
       // const gasLimit = await contract.methods.set(...inputs).estimateGas();
