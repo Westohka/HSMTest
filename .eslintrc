@@ -1,0 +1,37 @@
+{
+  "env": {
+    "es6": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "airbnb",
+    "@hapi/eslint-config-hapi",
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    "indent": ["error", 2],
+    "import/no-unresolved": "off",
+    "import/extensions": "off",
+    "max-len": "warn",
+    "require-await": "off",
+    "guard-for-in": "off",
+    "no-restricted-syntax": "off",
+    "@typescript-eslint/ban-types": "warn",
+    "no-plusplus": "warn",
+    "import/prefer-default-export": "off",
+    "no-param-reassign": "warn",
+    "@typescript-eslint/no-var-requires": "warn",
+    "no-await-in-loop":"warn",
+    "linebreak-style": "off"
+  },
+  "parserOptions": {
+    "ecmaVersion": 6,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "modules": true
+    }
+  }
+}

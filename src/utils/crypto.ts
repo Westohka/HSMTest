@@ -8,6 +8,8 @@ export const SGreaterThenSecp256k1n = (S: BN) => S.cmp(secp256k1n_2) === 1;
 
 export const Eip2SParamRecalculate = (S: BN): BN => (SGreaterThenSecp256k1n(S) ? secp256k1n.sub(S) : S);
 
+export const calculateV = (chainId = 0, recovery) => (chainId ? recovery + (chainId * 2 + 35) : recovery + 27);
+
 export const getRSFromSignature = (signature: Buffer, isDerEncoded = true, encoding = 'hex'): {R: Buffer, S: Buffer} => {
   const result = { R: null, S: null };
   if (signature.byteLength < 64) {
