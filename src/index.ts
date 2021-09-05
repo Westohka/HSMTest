@@ -1,5 +1,6 @@
 import {web3} from "./utils/web3";
 import axios from 'axios';
+import * as rlp from 'rlp'
 
 import config from './config';
 import abi from './config/abi';
@@ -41,8 +42,13 @@ const encodeData = (inputs,method = 'set') => {
   return contract.methods[method](...inputs).encodeABI();
 }
 
+const encodeSha3Data = (inputs) => {
+  return web3.utils.soliditySha3(...inputs);
+}
+
 const preparePayload = async (inputs, address) => {
   const gasPrice = await web3.eth.getGasPrice();
+  console.log(inputs)
   const gasLimit = await contract.methods.set(...inputs).estimateGas();
   return {
     nonce: web3.utils.toHex(await web3.eth.getTransactionCount(address)),
@@ -50,7 +56,7 @@ const preparePayload = async (inputs, address) => {
     gasLimit: web3.utils.toHex(gasLimit),
     to: config.contract,
     value: '0x0',
-    data: encodeData(inputs),
+    data: encodeSha3Data(inputs),
     v: vDefaultValue1,
     r: '0x0',
     s: '0x0',
@@ -77,18 +83,31 @@ const sendToHsm = async (tx_payload, payloadType, signatureAlgorithm) => {
   const data = await getFromHsm(signRequest.signRequestId);
   return data.result;
 }
-// const getFromContract = async () => {
-//   const data = await contract.methods.get(TX_PAYLOAD).call();
-//
-//   return data;
-// }
+const getFromContract = async () => {
+  const data = await contract.methods.get(TX_PAYLOAD).call();
+
+  return data;
+}
 
 
 const init = async () => {
-  let inputs: any = [TX_PAYLOAD, vDefaultValue1, '1', '1', 'zzzz'];
+  let inputs: any = [TX_PAYLOAD];
   console.log(inputs)
   // const payload2 = await preparePayload(inputs,config.address)
   let payload = web3.utils.soliditySha3(...inputs);
+  const gasLimit = 68704;
+  const gasPrice = await web3.eth.getGasPrice();
+  const p1 = {
+    nonce: web3.utils.toHex(await web3.eth.getTransactionCount(config.address)),
+    gasPrice: web3.utils.toHex(gasPrice),
+    gasLimit: web3.utils.toHex(gasLimit),
+    to: config.contract,
+    value: '0x0',
+    data: encodeSha3Data(inputs),
+    v:vDefaultValue1
+  };
+  const txx = new Transaction(p1, TxOptions)
+  payload = `0x${txx.hash(false).toString('hex')}`;
   // const payload = await preparePayload(inputs, config.address);
   // let payload: any = web3.eth.accounts.hashMessage(inputs);
   let payload1 = Buffer.from(payload.replace('0x',''), 'hex').toString('base64')
@@ -118,10 +137,31 @@ const init = async () => {
 
       // payload.r = signature.R;
       // payload.s = signature.S;
-      const p2 = [TX_PAYLOAD, vDefaultValue2, V, `0x${signature.R.toString('hex')}`, `0x${signature.S.toString('hex')}`]
+      inputs[4] = payload
+      inputs[1] = V
+      inputs[2] = `0x${signature.R.toString('hex')}`
+      inputs[3] = `0x${signature.S.toString('hex')}`
+
+      console.log(inputs)
+      // const gasLimit = await contract.methods.set(...inputs).estimateGas();
+      const gasLimit = 68704;
+      const p2 = {
+        nonce: web3.utils.toHex(await web3.eth.getTransactionCount(config.address)),
+        gasPrice: web3.utils.toHex(gasPrice),
+        gasLimit: web3.utils.toHex(gasLimit),
+        to: config.contract,
+        value: '0x0',
+        data: encodeSha3Data(inputs),
+        v:V,
+        r:`0x${signature.R.toString('hex')}`,
+        s:`0x${signature.S.toString('hex')}`
+      };
+
+
+      console.log(p2)
       let _tx = new Transaction(p2, TxOptions);
-      // //
-      // console.log('АДРЕС',`0x${_tx.getSenderAddress().toString('hex')}`)
+
+      console.log('АДРЕС',`0x${_tx.getSenderAddress().toString('hex')}`)
       // console.log('ADDRESSES is not compared', web3.utils.toChecksumAddress(_tx.getSenderAddress().toString('hex')) !== web3.utils.toChecksumAddress(config.address))
       // if (web3.utils.toChecksumAddress(_tx.getSenderAddress().toString('hex')) !== web3.utils.toChecksumAddress(config.address)) {
       //   let v = Buffer.from([calculateV(_tx.getChainId(), 0)]);
@@ -134,6 +174,10 @@ const init = async () => {
       // console.log('АДРЕС2',`0x${_tx.getSenderAddress().toString('hex')}`)
       _tx
       const zzzz = _tx.serialize().toString('hex');
+      const execResult = await web3.eth.sendSignedTransaction(`0x${zzzz}`)
+      console.log('execResult', execResult)
+      const x = await getFromContract()
+      console.log('pending', x)
     }
   }
 }
