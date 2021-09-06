@@ -1,6 +1,5 @@
 import {web3} from "./utils/web3";
 import axios from 'axios';
-import * as rlp from 'rlp'
 
 import config from './config';
 import abi from './config/abi';
@@ -11,7 +10,7 @@ import {getRlpSignature, getRSFromSignature, calculateV} from './utils/crypto';
 import {Transaction} from 'ethereumjs-tx';
 
 
-const TX_PAYLOAD = '123';
+const TX_PAYLOAD = 123;
 
 const TxOptions = {chain: `rinkeby`, hardfork: 'petersburg'}
 const vDefaultValue1 = '0x2b';
@@ -94,7 +93,7 @@ const init = async () => {
   let inputs: any =
     [
       TX_PAYLOAD,
-      '0x2b',
+      '0x1b',
       '0x7b997e422d6944bb80a0dc5322ffd4898c75560b0e41ff329aad9830822bd45f',
       '0x7fd5c545969717c3757f644bd571b23dc28fd8aea6eb4833e5f9b2be230285fc',
       '0xfe69b67d939f27c66c91b2b7e9769b2cd42dae18a2492dff3cc132c20d02678c'
@@ -102,7 +101,9 @@ const init = async () => {
   console.log(inputs)
   // const payload2 = await preparePayload(inputs,config.address)
   let payload = web3.utils.soliditySha3(...inputs);
-  const gasLimit = 68704;
+  // const payload = await preparePayload(inputs, config.address);
+  const encodedData = contract.methods.set(...inputs).encodeABI()
+  const gasLimit = await contract.methods.set(...inputs).estimateGas();
   const gasPrice = await web3.eth.getGasPrice();
   const p1 = {
     nonce: web3.utils.toHex(await web3.eth.getTransactionCount(config.address)),
@@ -110,29 +111,26 @@ const init = async () => {
     gasLimit: web3.utils.toHex(gasLimit),
     to: config.contract,
     value: '0x0',
-    data: encodeSha3Data(inputs),
+    data: encodedData,
     v:vDefaultValue1
   };
   const txx = new Transaction(p1, TxOptions)
   payload = `0x${txx.hash(false).toString('hex')}`;
-  // const payload = await preparePayload(inputs, config.address);
+  // const result = web3.eth.accounts.recover(payload, `0x${signature.toString('hex')}`);
   // let payload: any = web3.eth.accounts.hashMessage(inputs);
   let payload1 = Buffer.from(payload.replace('0x',''), 'hex').toString('base64')
+
   // const hashedTX = new Transaction(payload, TxOptions).hash(false).toString('hex')
   console.log(payload);
-
   const payloadTypes = ['ETH'];
-  const signatureAlgorithms = ['NONE_WITH_ECDSA']//['SHA224_WITH_RSA_PSS', 'SHA256_WITH_RSA_PSS', 'SHA384_WITH_RSA_PSS', 'SHA512_WITH_RSA_PSS', 'NONE_WITH_DSA', 'SHA224_WITH_DSA', 'SHA256_WITH_DSA', 'SHA384_WITH_DSA', 'SHA512_WITH_DSA', 'NONE_WITH_RSA', 'SHA224_WITH_RSA', 'SHA256_WITH_RSA', 'SHA384_WITH_RSA', 'SHA512_WITH_RSA', 'NONESHA224_WITH_RSA', 'NONESHA256_WITH_RSA', 'NONESHA384_WITH_RSA', 'NONESHA512_WITH_RSA', 'NONE_WITH_ECDSA', 'SHA1_WITH_ECDSA', 'SHA224_WITH_ECDSA', 'SHA256_WITH_ECDSA', 'SHA384_WITH_ECDSA', 'SHA512_WITH_ECDSA', 'SHA3224_WITH_ECDSA', 'SHA3256_WITH_ECDSA', 'SHA3384_WITH_ECDSA', 'SHA3512_WITH_ECDSA', 'EDDSA', 'KECCAK224_WITH_ECDSA', 'KECCAK256_WITH_ECDSA', 'KECCAK384_WITH_ECDSA', 'KECCAK512_WITH_ECDSA', 'ISS_KERL', 'SHA1_WITH_RSA', 'SHA1_WITH_DSA', 'NONESHA1_WITH_RSA', 'SHA1_WITH_RSA_PSS', 'BLS'];
 
+  const signatureAlgorithms = ['NONE_WITH_ECDSA']//['SHA224_WITH_RSA_PSS', 'SHA256_WITH_RSA_PSS', 'SHA384_WITH_RSA_PSS', 'SHA512_WITH_RSA_PSS', 'NONE_WITH_DSA', 'SHA224_WITH_DSA', 'SHA256_WITH_DSA', 'SHA384_WITH_DSA', 'SHA512_WITH_DSA', 'NONE_WITH_RSA', 'SHA224_WITH_RSA', 'SHA256_WITH_RSA', 'SHA384_WITH_RSA', 'SHA512_WITH_RSA', 'NONESHA224_WITH_RSA', 'NONESHA256_WITH_RSA', 'NONESHA384_WITH_RSA', 'NONESHA512_WITH_RSA', 'NONE_WITH_ECDSA', 'SHA1_WITH_ECDSA', 'SHA224_WITH_ECDSA', 'SHA256_WITH_ECDSA', 'SHA384_WITH_ECDSA', 'SHA512_WITH_ECDSA', 'SHA3224_WITH_ECDSA', 'SHA3256_WITH_ECDSA', 'SHA3384_WITH_ECDSA', 'SHA3512_WITH_ECDSA', 'EDDSA', 'KECCAK224_WITH_ECDSA', 'KECCAK256_WITH_ECDSA', 'KECCAK384_WITH_ECDSA', 'KECCAK512_WITH_ECDSA', 'ISS_KERL', 'SHA1_WITH_RSA', 'SHA1_WITH_DSA', 'NONESHA1_WITH_RSA', 'SHA1_WITH_RSA_PSS', 'BLS'];
   for (const payloadType of payloadTypes) {
     for (const signatureAlgorithm of signatureAlgorithms) {
       const hsmData = await sendToHsm(payload1, payloadType, signatureAlgorithm);
       console.log(hsmData);
       let signature: any = Buffer.from(hsmData, 'base64');
-      const v: any = Buffer.from(vDefaultValue1.replace('0x', ''),'hex');
-
       signature = getRSFromSignature(signature);
-      // const result = web3.eth.accounts.recover(payload, `0x${signature.toString('hex')}`);
       let V = vDefaultValue1
       const result = web3.eth.accounts.recover(payload, vDefaultValue1,`0x${signature.R.toString('hex')}`, `0x${signature.S.toString('hex')}`, true);
       const result2 = web3.eth.accounts.recover(payload, vDefaultValue2,`0x${signature.R.toString('hex')}`, `0x${signature.S.toString('hex')}`, true);
@@ -142,23 +140,17 @@ const init = async () => {
       console.log('kul4',result);
       console.log('kul42',result2);
 
-      // payload.r = signature.R;
-      // payload.s = signature.S;
-      // inputs[4] = payload
-      // inputs[1] = V
-      // inputs[2] = `0x${signature.R.toString('hex')}`
-      // inputs[3] = `0x${signature.S.toString('hex')}`
-
       console.log(inputs)
+      console.log(signature.R.length)
       // const gasLimit = await contract.methods.set(...inputs).estimateGas();
-      const gasLimit = 68704;
+      const gasLimit = await contract.methods.set(...inputs).estimateGas();
       const p2 = {
         nonce: web3.utils.toHex(await web3.eth.getTransactionCount(config.address)),
         gasPrice: web3.utils.toHex(gasPrice),
         gasLimit: web3.utils.toHex(gasLimit),
         to: config.contract,
         value: '0x0',
-        data: encodeSha3Data(inputs),
+        data: encodedData,
         v:V,
         r:`0x${signature.R.toString('hex')}`,
         s:`0x${signature.S.toString('hex')}`
@@ -179,7 +171,6 @@ const init = async () => {
       //   _tx = new Transaction(payload, TxOptions);
       // }
       // console.log('АДРЕС2',`0x${_tx.getSenderAddress().toString('hex')}`)
-      _tx
       const zzzz = _tx.serialize().toString('hex');
       const execResult = await web3.eth.sendSignedTransaction(`0x${zzzz}`)
       console.log('execResult', execResult)
